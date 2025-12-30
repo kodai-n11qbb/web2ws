@@ -1,3 +1,5 @@
+use web2ws::websocket::spawn_test_websocket;
+
 #[test]
 fn websocket_sends_binary_frame() {
     let (server, client) = spawn_test_websocket();

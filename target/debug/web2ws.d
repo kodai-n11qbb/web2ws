@@ -1,0 +1,1 @@
+/Users/abekoudai/Desktop/web2ws/target/debug/web2ws: /Users/abekoudai/Desktop/web2ws/src/camera/mod.rs /Users/abekoudai/Desktop/web2ws/src/lib.rs /Users/abekoudai/Desktop/web2ws/src/main.rs /Users/abekoudai/Desktop/web2ws/src/server/mod.rs /Users/abekoudai/Desktop/web2ws/src/websocket/mod.rs

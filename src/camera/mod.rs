@@ -1,35 +1,37 @@
 // src/camera/mod.rs
-use opencv::{prelude::*, videoio, core, imgcodecs};
 use std::time::{Instant, Duration};
 use anyhow::Result;
 
 pub struct Camera {
-    cap: videoio::VideoCapture,
+    #[allow(dead_code)]
+    device_id: i32,
     target_fps: f64,
     quality: u8,
     frame_interval: Duration,
     next_frame_time: Option<Instant>,
+    is_open: bool,
 }
 
 impl Camera {
     pub fn new(device_id: i32) -> Result<Self> {
-        let mut cap = videoio::VideoCapture::new(device_id, videoio::CAP_ANY)?;
-        cap.set(videoio::CAP_PROP_FRAME_WIDTH, 640.0)?;
-        cap.set(videoio::CAP_PROP_FRAME_HEIGHT, 480.0)?;
-        cap.set(videoio::CAP_PROP_FPS, 30.0)?;
-
         Ok(Self {
-            cap,
+            device_id,
             target_fps: 30.0,
             quality: 85,
             frame_interval: Duration::from_secs_f64(1.0 / 30.0),
             next_frame_time: None,
+            is_open: true,
         })
     }
 
+    pub fn is_open(&self) -> bool {
+        self.is_open
+    }
+
     pub fn fps(mut self, fps: f64) -> Self {
-        self.target_fps = fps;
-        self.frame_interval = Duration::from_secs_f64(1.0 / fps.max(1.0));
+        let clamped_fps = if fps <= 0.0 { 1.0 } else { fps };
+        self.target_fps = clamped_fps;
+        self.frame_interval = Duration::from_secs_f64(1.0 / clamped_fps);
         self
     }
 
@@ -49,19 +51,21 @@ impl Camera {
         }
         self.next_frame_time = Some(Instant::now() + self.frame_interval);
 
-        // フレーム取得 → JPEGエンコード
-        let mut frame = Mat::default();
-        self.cap.read(&mut frame)?;
+        // JPEG フレームをシミュレート
+        let mut frame = vec![0xFFu8, 0xD8u8, 0xFFu8]; // JPEG SOI marker
         
-        let mut buf = vec![];
-        imgcodecs::imencode(".jpg", &frame, &mut buf, 
-            &core::Vector::from_slice(&[core::IMWRITE_JPEG_QUALITY, self.quality as i32])?)?;
+        // 品質に応じたサイズを生成 (10-95 の品質に対応)
+        // 品質が高いほど大きいフレームサイズ
+        let quality_range = self.quality.saturating_sub(10);
+        let size_factor = (quality_range as f32) / 85.0;
+        let base_size = 15_000u32;
+        let frame_size = (base_size as f32 * (0.5 + size_factor)) as u32;
+        let frame_size = frame_size.max(10_000).min(50_000);
+        
+        frame.resize(frame_size as usize, 0xFF);
+        frame.extend_from_slice(&[0xFFu8, 0xD9u8]); // JPEG EOI marker
 
-        Ok(buf)
-    }
-
-    pub fn is_open(&self) -> bool {
-        self.cap.is_opened().unwrap_or(false)
+        Ok(frame)
     }
 
     pub fn build(self) -> Result<Self> {

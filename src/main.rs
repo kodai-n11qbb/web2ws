@@ -20,7 +20,7 @@ fn main() -> anyhow::Result<()> {
     let args = Args::parse();
     
     // Initialize camera with FPS and quality settings
-    let camera = Camera::new(0)?
+    let _camera = Camera::new(0)?
         .fps(args.fps)
         .quality(args.quality)
         .build()?;

@@ -1,6 +1,26 @@
 use crate::camera::Camera;
 use std::time::{Instant, Duration};
-use opencv::{core, imgcodecs};
+
+#[test]
+fn camera_applies_fps_setting() {
+    let mut camera = Camera::new(0)
+        .unwrap()
+        .fps(10.0)  // 10fps指定（0.1秒間隔）
+        .quality(80)
+        .build()
+        .unwrap();  // ビルダーパターン想定
+    
+    let start = Instant::now();
+    for _ in 0..5 {
+        camera.capture_frame().unwrap();
+    }
+    let elapsed = start.elapsed();
+    
+    // 10fps x 5フレーム = 0.5秒前後のはず
+    let expected_duration = Duration::from_secs_f64(0.4);
+    let tolerance = Duration::from_secs_f64(0.2);
+    assert!(elapsed >= expected_duration.saturating_sub(tolerance));
+    assert!(elapsed <= expected_duration + tolerance);
 
 #[test]
 fn camera_applies_fps_setting() {
