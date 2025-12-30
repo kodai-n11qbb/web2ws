@@ -3,20 +3,20 @@
 <head>
     <title>Web2WS Camera Sender</title>
     <style>
-        body { font-family: Arial; margin: 40px; }
-        video { border: 2px solid #007bff; max-width: 640px; }
-        button { padding: 10px 20px; font-size: 16px; margin: 10px; }
+        body { font-family: Arial; margin: 20px; background: #f0f0f0; }
+        video { border: 2px solid #007bff; max-width: 100%; height: auto; }
+        button { padding: 10px 20px; font-size: 16px; margin: 10px 0; cursor: pointer; }
         #status { padding: 10px; margin: 10px 0; border-radius: 5px; }
         .connected { background: #d4edda; color: #155724; }
         .disconnected { background: #f8d7da; color: #721c24; }
-        .fps { font-size: 24px; font-weight: bold; }
+        .fps { font-size: 20px; font-weight: bold; margin-top: 20px; }
     </style>
 </head>
 <body>
-    <h1>📷 Camera Sender (ws://localhost:9001/camera)</h1>
+    <h1>📷 Camera Sender</h1>
     
     <div>
-        <video id="video" autoplay muted playsinline></video>
+        <video id="video" autoplay muted playsinline style="max-width: 640px; border: 2px solid #007bff;"></video>
     </div>
     
     <div>
@@ -25,13 +25,12 @@
     </div>
     
     <div id="status" class="disconnected">
-        🔴 Disconnected - Click "Start Streaming"
+        🔴 Not connected
     </div>
     
     <div class="fps">
         FPS: <span id="fpsCounter">0</span> | 
-        Frames: <span id="frameCounter">0</span> | 
-        Status: <span id="connectionStatus">Disconnected</span>
+        Frames Sent: <span id="frameCounter">0</span>
     </div>
 
     <script>
@@ -44,13 +43,13 @@
                 this.status = document.getElementById('status');
                 this.fpsCounter = document.getElementById('fpsCounter');
                 this.frameCounter = document.getElementById('frameCounter');
-                this.connectionStatus = document.getElementById('connectionStatus');
                 
                 this.stream = null;
-                this.mediaRecorder = null;
                 this.frameCount = 0;
                 this.lastFpsTime = performance.now();
                 this.fps = 0;
+                this.totalFrames = 0;
+                this.isStreaming = false;
                 
                 this.init();
             }
@@ -59,42 +58,54 @@
                 this.startBtn.onclick = () => this.start();
                 this.stopBtn.onclick = () => this.stop();
                 
-                // カメラアクセス許可
+                // Request camera access
                 try {
                     this.stream = await navigator.mediaDevices.getUserMedia({
-                        video: { width: 640, height: 480, frameRate: 30 }
+                        video: { 
+                            width: { ideal: 640 }, 
+                            height: { ideal: 480 }, 
+                            facingMode: 'user'
+                        }
                     });
                     this.video.srcObject = this.stream;
                     this.updateStatus('🟡 Camera ready - Click Start', 'connected');
                 } catch (err) {
-                    console.error('Camera access failed:', err);
+                    console.error('❌ Camera access failed:', err);
                     this.updateStatus('❌ Camera access denied', 'disconnected');
+                    this.startBtn.disabled = true;
                 }
             }
             
             start() {
                 if (!this.stream) return;
                 
-                // WebSocket接続
-                this.ws = new WebSocket('ws://localhost:9001/camera');
+                // Get dynamic hostname
+                const host = window.location.hostname;
+                const port = window.location.port || '9001';
+                const wsUrl = `ws://${host}:${port}/camera`;
+                
+                this.ws = new WebSocket(wsUrl);
+                this.ws.binaryType = 'arraybuffer';
                 
                 this.ws.onopen = () => {
-                    console.log('✅ WebSocket connected');
+                    console.log('✅ Connected to camera endpoint:', wsUrl);
                     this.updateStatus('🟢 Connected & Streaming', 'connected');
                     this.startBtn.disabled = true;
                     this.stopBtn.disabled = false;
+                    this.isStreaming = true;
                     this.startStreaming();
                 };
                 
                 this.ws.onclose = () => {
-                    console.log('🔌 WebSocket closed');
+                    console.log('🔌 Disconnected from camera');
                     this.updateStatus('🔴 Disconnected', 'disconnected');
-                    this.stopStreaming();
+                    this.isStreaming = false;
                 };
                 
                 this.ws.onerror = (err) => {
-                    console.error('WebSocket error:', err);
+                    console.error('❌ WebSocket error:', err);
                     this.updateStatus('❌ Connection failed', 'disconnected');
+                    this.isStreaming = false;
                 };
             }
             
@@ -102,45 +113,46 @@
                 const canvas = document.createElement('canvas');
                 canvas.width = 640;
                 canvas.height = 480;
-                const ctx = canvas.getContext('2d');
+                const ctx = canvas.getContext('2d', { willReadFrequently: true });
                 
                 const sendFrame = () => {
-                    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-                        try {
-                            ctx.drawImage(this.video, 0, 0, 640, 480);
-                            canvas.toBlob((blob) => {
-                                if (blob && this.ws && this.ws.readyState === WebSocket.OPEN) {
-                                    this.ws.send(blob);
-                                    this.frameCount++;
-                                    this.updateFps();
-                                    console.log(`Frame sent: ${blob.size} bytes`);
-                                }
-                            }, 'image/jpeg', 0.8);
-                        } catch (err) {
-                            console.error('Error sending frame:', err);
-                        }
+                    if (!this.isStreaming || !this.ws || this.ws.readyState !== WebSocket.OPEN) {
+                        return;
                     }
                     
-                    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-                        requestAnimationFrame(sendFrame);
+                    try {
+                        ctx.drawImage(this.video, 0, 0, canvas.width, canvas.height);
+                        // Convert to JPEG and send (optimize for speed: quality 0.75)
+                        canvas.toBlob((blob) => {
+                            if (blob && this.isStreaming && this.ws && this.ws.readyState === WebSocket.OPEN) {
+                                blob.arrayBuffer().then(buffer => {
+                                    this.ws.send(buffer);
+                                    this.frameCount++;
+                                    this.totalFrames++;
+                                    this.updateFps();
+                                });
+                            }
+                        }, 'image/jpeg', 0.75);
+                    } catch (err) {
+                        console.error('Error encoding frame:', err);
                     }
+                    
+                    // Send next frame (browser will throttle to monitor refresh rate)
+                    requestAnimationFrame(sendFrame);
                 };
                 
                 sendFrame();
             }
             
             stop() {
-                this.stopStreaming();
+                this.isStreaming = false;
                 if (this.ws) {
                     this.ws.close();
                     this.ws = null;
                 }
-                this.stream.getTracks().forEach(track => track.stop());
-            }
-            
-            stopStreaming() {
                 this.startBtn.disabled = false;
                 this.stopBtn.disabled = true;
+                this.updateStatus('🔴 Stopped', 'disconnected');
             }
             
             updateFps() {
@@ -151,13 +163,12 @@
                     this.lastFpsTime = now;
                 }
                 this.fpsCounter.textContent = this.fps.toString();
-                this.frameCounter.textContent = this.frameCount.toString();
+                this.frameCounter.textContent = this.totalFrames.toString();
             }
             
             updateStatus(message, className) {
                 this.status.textContent = message;
                 this.status.className = className;
-                this.connectionStatus.textContent = message.split(' - ')[0];
             }
         }
         

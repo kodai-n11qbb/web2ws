@@ -3,20 +3,20 @@
 <head>
     <title>Web2WS Viewer</title>
     <style>
-        body { font-family: Arial; margin: 40px; }
-        video { border: 2px solid #28a745; max-width: 640px; }
-        button { padding: 10px 20px; font-size: 16px; margin: 10px; }
+        body { font-family: Arial; margin: 20px; background: #f0f0f0; }
+        #canvas { border: 2px solid #28a745; max-width: 100%; height: auto; background: #000; }
+        button { padding: 10px 20px; font-size: 16px; margin: 10px 0; cursor: pointer; }
         #status { padding: 10px; margin: 10px 0; border-radius: 5px; }
         .connected { background: #d4edda; color: #155724; }
         .disconnected { background: #f8d7da; color: #721c24; }
-        .fps { font-size: 24px; font-weight: bold; }
+        .fps { font-size: 20px; font-weight: bold; margin-top: 20px; }
     </style>
 </head>
 <body>
-    <h1>📺 Video Viewer (ws://localhost:9001/view)</h1>
+    <h1>📺 Video Viewer</h1>
     
     <div>
-        <video id="video" autoplay controls playsinline></video>
+        <canvas id="canvas" width="640" height="480" style="border: 2px solid #28a745; background: #000;"></canvas>
     </div>
     
     <div>
@@ -25,7 +25,7 @@
     </div>
     
     <div id="status" class="disconnected">
-        🔴 Disconnected - Click "Connect"
+        🔴 Disconnected
     </div>
     
     <div class="fps">
@@ -37,7 +37,8 @@
         class VideoViewer {
             constructor() {
                 this.ws = null;
-                this.video = document.getElementById('video');
+                this.canvas = document.getElementById('canvas');
+                this.ctx = this.canvas.getContext('2d');
                 this.connectBtn = document.getElementById('connectBtn');
                 this.disconnectBtn = document.getElementById('disconnectBtn');
                 this.status = document.getElementById('status');
@@ -47,6 +48,7 @@
                 this.frameCount = 0;
                 this.lastFpsTime = performance.now();
                 this.fps = 0;
+                this.totalFrames = 0;
                 
                 this.init();
             }
@@ -57,25 +59,45 @@
             }
             
             connect() {
-                this.ws = new WebSocket('ws://localhost:9001/view');
+                // localhost or dynamic hostname
+                const host = window.location.hostname;
+                const port = window.location.port || '9001';
+                const wsUrl = `ws://${host}:${port}/view`;
+                
+                this.ws = new WebSocket(wsUrl);
+                this.ws.binaryType = 'arraybuffer';
                 
                 this.ws.onopen = () => {
-                    console.log('✅ Viewer connected');
+                    console.log('✅ Viewer connected to', wsUrl);
                     this.updateStatus('🟢 Connected & Receiving', 'connected');
                     this.connectBtn.disabled = true;
                     this.disconnectBtn.disabled = false;
                 };
                 
                 this.ws.onmessage = (event) => {
-                    // event.data は Blob
-                    const blob = event.data;
-                    if (blob instanceof Blob) {
+                    try {
+                        // Receive binary JPEG frame data
+                        const arrayBuffer = event.data;
+                        const blob = new Blob([arrayBuffer], { type: 'image/jpeg' });
                         const url = URL.createObjectURL(blob);
-                        this.video.srcObject = null;
-                        this.video.src = url;
-                        this.frameCount++;
-                        this.updateFps();
-                        console.log(`Frame received: ${this.frameCount} frames, ${blob.size} bytes`);
+                        
+                        const img = new Image();
+                        img.onload = () => {
+                            // Draw JPEG to canvas (fast)
+                            this.ctx.drawImage(img, 0, 0, this.canvas.width, this.canvas.height);
+                            URL.revokeObjectURL(url);
+                            
+                            this.frameCount++;
+                            this.totalFrames++;
+                            this.updateFps();
+                        };
+                        img.onerror = () => {
+                            URL.revokeObjectURL(url);
+                            console.warn('Failed to decode JPEG frame');
+                        };
+                        img.src = url;
+                    } catch (err) {
+                        console.error('Frame processing error:', err);
                     }
                 };
                 
@@ -102,7 +124,8 @@
             reset() {
                 this.connectBtn.disabled = false;
                 this.disconnectBtn.disabled = true;
-                this.video.src = '';
+                this.ctx.fillStyle = '#000';
+                this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
             }
             
             updateFps() {
@@ -113,7 +136,7 @@
                     this.lastFpsTime = now;
                 }
                 this.fpsCounter.textContent = this.fps.toString();
-                this.frameCounter.textContent = this.frameCount.toString();
+                this.frameCounter.textContent = this.totalFrames.toString();
             }
             
             updateStatus(message, className) {

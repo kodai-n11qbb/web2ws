@@ -1,19 +1,15 @@
 // src/server/mod.rs
-use crate::camera::Camera;
 use anyhow::Result;
-use std::sync::Arc;
-use tokio::sync::{RwLock, mpsc, broadcast};
+use tokio::sync::broadcast;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio_tungstenite::accept_async;
 use tokio_tungstenite::tungstenite::Message;
 use futures::stream::StreamExt;
 use futures::SinkExt;
-use std::collections::HashMap;
 
 pub struct Server {
     addr: String,
-    camera: Arc<RwLock<Camera>>,
     broadcast_tx: broadcast::Sender<Vec<u8>>,
 }
 
@@ -22,7 +18,6 @@ impl Server {
         let (broadcast_tx, _) = broadcast::channel(100);
         Ok(Self {
             addr: addr.to_string(),
-            camera: Arc::new(RwLock::new(Camera::new(0)?)),
             broadcast_tx,
         })
     }
@@ -59,71 +54,63 @@ async fn handle_connection(
     mut stream: TcpStream,
     broadcast_tx: broadcast::Sender<Vec<u8>>,
 ) -> Result<()> {
-    // HTTP リクエストを読み込む
+    // Read HTTP request line
     let mut buf = [0; 4096];
     let n = stream.read(&mut buf).await?;
     if n == 0 {
         return Ok(());
     }
+    
     let request = String::from_utf8_lossy(&buf[..n]);
     
-    // Request-lineを安全に解析: "METHOD SP REQUEST-TARGET SP HTTP-VERSION CRLF"
+    // Parse first line to get path
     if let Some(first_line_end) = request.find("\r\n") {
         let first_line = &request[..first_line_end];
         let mut parts = first_line.split_whitespace();
         
-        if let (Some(method), Some(path_raw), Some(_version)) = (parts.next(), parts.next(), parts.next()) {
-            if method.eq_ignore_ascii_case("GET") {
-                // Query stringを削除してパスを抽出
-                let path = path_raw.split('?').next().unwrap_or(path_raw);
-                println!("Incoming request for path: {}", path);
-                
-                match path {
-                    "/camera" | "/view" => {
-                        // WebSocket アップグレード
-                        let ws_stream = accept_async(stream).await?;
-                        
-                        match path {
-                            "/camera" => return handle_camera_client(ws_stream, broadcast_tx).await,
-                            "/view" => return handle_viewer_client(ws_stream, broadcast_tx).await,
-                            _ => return Ok(()),
-                        }
+        if let (Some(_method), Some(path_raw), Some(_version)) = (parts.next(), parts.next(), parts.next()) {
+            let path = path_raw.split('?').next().unwrap_or(path_raw);
+            println!("Incoming request for path: {}", path);
+            
+            // WebSocket upgrade for /camera and /view
+            if path == "/camera" || path == "/view" {
+                match accept_async(stream).await {
+                    Ok(ws_stream) => {
+                        return if path == "/camera" {
+                            handle_camera_client(ws_stream, broadcast_tx).await
+                        } else {
+                            handle_viewer_client(ws_stream, broadcast_tx).await
+                        };
                     }
-                    "/" | "/sender.html" | "/static/sender.html" => {
-                        // sender.html を配信
-                        let content = include_str!("../../static/sender.html");
-                        let response = format!(
-                            "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\n\r\n{}",
-                            content.len(),
-                            content
-                        );
-                        stream.write_all(response.as_bytes()).await?;
-                        return Ok(());
-                    }
-                    "/viewer.html" | "/static/viewer.html" => {
-                        // viewer.html を配信
-                        let content = include_str!("../../static/viewer.html");
-                        let response = format!(
-                            "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\n\r\n{}",
-                            content.len(),
-                            content
-                        );
-                        stream.write_all(response.as_bytes()).await?;
-                        return Ok(());
-                    }
-                    p if p.starts_with("/static/") => {
-                        // /static/ で始まるがサポートされていないパス
-                        let response = "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n";
-                        stream.write_all(response.as_bytes()).await?;
-                        return Ok(());
-                    }
-                    _ => {
-                        // 404 Not Found
-                        let response = "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n";
-                        stream.write_all(response.as_bytes()).await?;
+                    Err(e) => {
+                        eprintln!("WebSocket upgrade failed: {}", e);
                         return Ok(());
                     }
                 }
+            }
+            
+            // HTTP file serving
+            let (content, is_html) = match path {
+                "/" | "/sender.html" | "/static/sender.html" => {
+                    (include_str!("../../static/sender.html"), true)
+                }
+                "/viewer.html" | "/static/viewer.html" => {
+                    (include_str!("../../static/viewer.html"), true)
+                }
+                _ => {
+                    let response = "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n";
+                    stream.write_all(response.as_bytes()).await?;
+                    return Ok(());
+                }
+            };
+            
+            if is_html {
+                let response = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\n\r\n{}",
+                    content.len(),
+                    content
+                );
+                stream.write_all(response.as_bytes()).await?;
             }
         }
     }
@@ -132,17 +119,15 @@ async fn handle_connection(
 }
 
 async fn handle_camera_client(
-    ws_stream: tokio_tungstenite::WebSocketStream<TcpStream>,
+    mut ws_stream: tokio_tungstenite::WebSocketStream<TcpStream>,
     broadcast_tx: broadcast::Sender<Vec<u8>>,
 ) -> Result<()> {
-    println!("Camera client connected");
-    let (mut ws_sender, mut ws_receiver) = ws_stream.split();
+    println!("📹 Camera client connected");
     
-    while let Some(msg_result) = ws_receiver.next().await {
+    while let Some(msg_result) = ws_stream.next().await {
         match msg_result {
             Ok(Message::Binary(data)) => {
-                println!("Received frame from camera: {} bytes", data.len());
-                // ブロードキャストして視聴者に配信
+                // Broadcast frame to all viewers
                 let _ = broadcast_tx.send(data);
             }
             Ok(Message::Close(_)) => {
@@ -161,26 +146,23 @@ async fn handle_camera_client(
 }
 
 async fn handle_viewer_client(
-    ws_stream: tokio_tungstenite::WebSocketStream<TcpStream>,
+    mut ws_stream: tokio_tungstenite::WebSocketStream<TcpStream>,
     broadcast_tx: broadcast::Sender<Vec<u8>>,
 ) -> Result<()> {
-    println!("Viewer client connected");
-    let (mut ws_sender, _ws_receiver) = ws_stream.split();
+    println!("📺 Viewer client connected");
     let mut broadcast_rx = broadcast_tx.subscribe();
     
     while let Ok(frame) = broadcast_rx.recv().await {
-        match ws_sender.send(Message::Binary(frame)).await {
-            Ok(_) => println!("Sent frame to viewer"),
-            Err(e) => {
-                eprintln!("Error sending to viewer: {}", e);
-                break;
-            }
+        if let Err(e) = ws_stream.send(Message::Binary(frame)).await {
+            eprintln!("Error sending to viewer: {}", e);
+            break;
         }
     }
     
     println!("Viewer client disconnected");
     Ok(())
 }
+
 
 // Test helper structures
 pub struct TestCameraClient {
