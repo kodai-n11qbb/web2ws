@@ -1,10 +1,10 @@
-// src/main.rs
 mod camera;
 mod websocket;
 mod server;
 
 use clap::Parser;
 use camera::Camera;
+use server::Server;
 
 #[derive(Parser)]
 struct Args {
@@ -16,18 +16,36 @@ struct Args {
     bind: String,
 }
 
-fn main() -> anyhow::Result<()> {
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
     
-    // Initialize camera with FPS and quality settings
-    let _camera = Camera::new(0)?
+    // Camera初期化（カメラを保持）
+    let camera = Camera::new(0)?
         .fps(args.fps)
         .quality(args.quality)
         .build()?;
     
     println!("Camera initialized - FPS: {}, Quality: {}", args.fps, args.quality);
+    
+    // Serverインスタンス作成
+    let mut server = Server::new(&args.bind).await?;
+    
     println!("Server starting on {}", args.bind);
     
-    // Server integration will be done in async context with tokio
+    // カメラとサーバーを同時に動かす
+    let server_handle = tokio::spawn(async move {
+        server.run().await
+    });
+    
+    // カメラストリーミングループ（無限待機）
+    loop {
+        // フレームキャプチャ＆送信（実装要）
+        tokio::time::sleep(tokio::time::Duration::from_millis(33)).await; // ~30fps
+    }
+    
+    // サーバー待機
+    server_handle.await??;
+    
     Ok(())
 }

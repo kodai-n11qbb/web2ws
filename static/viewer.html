@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Web2WS Viewer</title>
+    <style>
+        body { font-family: Arial; margin: 40px; }
+        video { border: 2px solid #28a745; max-width: 640px; }
+        button { padding: 10px 20px; font-size: 16px; margin: 10px; }
+        #status { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .connected { background: #d4edda; color: #155724; }
+        .disconnected { background: #f8d7da; color: #721c24; }
+        .fps { font-size: 24px; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1>📺 Video Viewer (ws://localhost:9001/view)</h1>
+    
+    <div>
+        <video id="video" autoplay controls playsinline></video>
+    </div>
+    
+    <div>
+        <button id="connectBtn">🔗 Connect</button>
+        <button id="disconnectBtn" disabled>🔌 Disconnect</button>
+    </div>
+    
+    <div id="status" class="disconnected">
+        🔴 Disconnected - Click "Connect"
+    </div>
+    
+    <div class="fps">
+        FPS: <span id="fpsCounter">0</span> | 
+        Frames: <span id="frameCounter">0</span>
+    </div>
+
+    <script>
+        class VideoViewer {
+            constructor() {
+                this.ws = null;
+                this.video = document.getElementById('video');
+                this.connectBtn = document.getElementById('connectBtn');
+                this.disconnectBtn = document.getElementById('disconnectBtn');
+                this.status = document.getElementById('status');
+                this.fpsCounter = document.getElementById('fpsCounter');
+                this.frameCounter = document.getElementById('frameCounter');
+                
+                this.frameCount = 0;
+                this.lastFpsTime = performance.now();
+                this.fps = 0;
+                
+                this.init();
+            }
+            
+            init() {
+                this.connectBtn.onclick = () => this.connect();
+                this.disconnectBtn.onclick = () => this.disconnect();
+            }
+            
+            connect() {
+                this.ws = new WebSocket('ws://localhost:9001/view');
+                
+                this.ws.onopen = () => {
+                    console.log('✅ Viewer connected');
+                    this.updateStatus('🟢 Connected & Receiving', 'connected');
+                    this.connectBtn.disabled = true;
+                    this.disconnectBtn.disabled = false;
+                };
+                
+                this.ws.onmessage = (event) => {
+                    // event.data は Blob
+                    const blob = event.data;
+                    if (blob instanceof Blob) {
+                        const url = URL.createObjectURL(blob);
+                        this.video.srcObject = null;
+                        this.video.src = url;
+                        this.frameCount++;
+                        this.updateFps();
+                        console.log(`Frame received: ${this.frameCount} frames, ${blob.size} bytes`);
+                    }
+                };
+                
+                this.ws.onclose = () => {
+                    console.log('🔌 Viewer disconnected');
+                    this.updateStatus('🔴 Disconnected', 'disconnected');
+                    this.reset();
+                };
+                
+                this.ws.onerror = (err) => {
+                    console.error('Viewer error:', err);
+                    this.updateStatus('❌ Connection failed', 'disconnected');
+                };
+            }
+            
+            disconnect() {
+                if (this.ws) {
+                    this.ws.close();
+                    this.ws = null;
+                }
+                this.reset();
+            }
+            
+            reset() {
+                this.connectBtn.disabled = false;
+                this.disconnectBtn.disabled = true;
+                this.video.src = '';
+            }
+            
+            updateFps() {
+                const now = performance.now();
+                if (now - this.lastFpsTime >= 1000) {
+                    this.fps = this.frameCount;
+                    this.frameCount = 0;
+                    this.lastFpsTime = now;
+                }
+                this.fpsCounter.textContent = this.fps.toString();
+                this.frameCounter.textContent = this.frameCount.toString();
+            }
+            
+            updateStatus(message, className) {
+                this.status.textContent = message;
+                this.status.className = className;
+            }
+        }
+        
+        new VideoViewer();
+    </script>
+</body>
+</html>

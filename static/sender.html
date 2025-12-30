@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Web2WS Camera Sender</title>
+    <style>
+        body { font-family: Arial; margin: 40px; }
+        video { border: 2px solid #007bff; max-width: 640px; }
+        button { padding: 10px 20px; font-size: 16px; margin: 10px; }
+        #status { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .connected { background: #d4edda; color: #155724; }
+        .disconnected { background: #f8d7da; color: #721c24; }
+        .fps { font-size: 24px; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1>📷 Camera Sender (ws://localhost:9001/camera)</h1>
+    
+    <div>
+        <video id="video" autoplay muted playsinline></video>
+    </div>
+    
+    <div>
+        <button id="startBtn">▶️ Start Streaming</button>
+        <button id="stopBtn" disabled>⏹️ Stop</button>
+    </div>
+    
+    <div id="status" class="disconnected">
+        🔴 Disconnected - Click "Start Streaming"
+    </div>
+    
+    <div class="fps">
+        FPS: <span id="fpsCounter">0</span> | 
+        Frames: <span id="frameCounter">0</span> | 
+        Status: <span id="connectionStatus">Disconnected</span>
+    </div>
+
+    <script>
+        class CameraSender {
+            constructor() {
+                this.ws = null;
+                this.video = document.getElementById('video');
+                this.startBtn = document.getElementById('startBtn');
+                this.stopBtn = document.getElementById('stopBtn');
+                this.status = document.getElementById('status');
+                this.fpsCounter = document.getElementById('fpsCounter');
+                this.frameCounter = document.getElementById('frameCounter');
+                this.connectionStatus = document.getElementById('connectionStatus');
+                
+                this.stream = null;
+                this.mediaRecorder = null;
+                this.frameCount = 0;
+                this.lastFpsTime = performance.now();
+                this.fps = 0;
+                
+                this.init();
+            }
+            
+            async init() {
+                this.startBtn.onclick = () => this.start();
+                this.stopBtn.onclick = () => this.stop();
+                
+                // カメラアクセス許可
+                try {
+                    this.stream = await navigator.mediaDevices.getUserMedia({
+                        video: { width: 640, height: 480, frameRate: 30 }
+                    });
+                    this.video.srcObject = this.stream;
+                    this.updateStatus('🟡 Camera ready - Click Start', 'connected');
+                } catch (err) {
+                    console.error('Camera access failed:', err);
+                    this.updateStatus('❌ Camera access denied', 'disconnected');
+                }
+            }
+            
+            start() {
+                if (!this.stream) return;
+                
+                // WebSocket接続
+                this.ws = new WebSocket('ws://localhost:9001/camera');
+                
+                this.ws.onopen = () => {
+                    console.log('✅ WebSocket connected');
+                    this.updateStatus('🟢 Connected & Streaming', 'connected');
+                    this.startBtn.disabled = true;
+                    this.stopBtn.disabled = false;
+                    this.startStreaming();
+                };
+                
+                this.ws.onclose = () => {
+                    console.log('🔌 WebSocket closed');
+                    this.updateStatus('🔴 Disconnected', 'disconnected');
+                    this.stopStreaming();
+                };
+                
+                this.ws.onerror = (err) => {
+                    console.error('WebSocket error:', err);
+                    this.updateStatus('❌ Connection failed', 'disconnected');
+                };
+            }
+            
+            startStreaming() {
+                const canvas = document.createElement('canvas');
+                canvas.width = 640;
+                canvas.height = 480;
+                const ctx = canvas.getContext('2d');
+                
+                const sendFrame = () => {
+                    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                        try {
+                            ctx.drawImage(this.video, 0, 0, 640, 480);
+                            canvas.toBlob((blob) => {
+                                if (blob && this.ws && this.ws.readyState === WebSocket.OPEN) {
+                                    this.ws.send(blob);
+                                    this.frameCount++;
+                                    this.updateFps();
+                                    console.log(`Frame sent: ${blob.size} bytes`);
+                                }
+                            }, 'image/jpeg', 0.8);
+                        } catch (err) {
+                            console.error('Error sending frame:', err);
+                        }
+                    }
+                    
+                    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                        requestAnimationFrame(sendFrame);
+                    }
+                };
+                
+                sendFrame();
+            }
+            
+            stop() {
+                this.stopStreaming();
+                if (this.ws) {
+                    this.ws.close();
+                    this.ws = null;
+                }
+                this.stream.getTracks().forEach(track => track.stop());
+            }
+            
+            stopStreaming() {
+                this.startBtn.disabled = false;
+                this.stopBtn.disabled = true;
+            }
+            
+            updateFps() {
+                const now = performance.now();
+                if (now - this.lastFpsTime >= 1000) {
+                    this.fps = this.frameCount;
+                    this.frameCount = 0;
+                    this.lastFpsTime = now;
+                }
+                this.fpsCounter.textContent = this.fps.toString();
+                this.frameCounter.textContent = this.frameCount.toString();
+            }
+            
+            updateStatus(message, className) {
+                this.status.textContent = message;
+                this.status.className = className;
+                this.connectionStatus.textContent = message.split(' - ')[0];
+            }
+        }
+        
+        new CameraSender();
+    </script>
+</body>
+</html>

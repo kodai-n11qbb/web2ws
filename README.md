@@ -45,23 +45,44 @@ Custom bind address:
 cargo run -- --bind 0.0.0.0:8080 --fps 20 --quality 75
 ```
 
-### WebSocket Endpoints
+### Web Interface
 
-Once the server is running, clients can connect to:
-- **Camera Stream**: `ws://127.0.0.1:9001/camera` - Send camera frames
-- **Viewer Stream**: `ws://127.0.0.1:9001/view` - Receive video frames
+Once the server is running, open your browser to:
+- **Sender** (Camera): `http://localhost:9001/` - Share camera stream
+- **Viewer**: `http://localhost:9001/viewer.html` - Watch video stream
+
+**Or access the WebSocket endpoints directly:**
+- **Camera Stream**: `ws://localhost:9001/camera` - Send camera frames
+- **Viewer Stream**: `ws://localhost:9001/view` - Receive video frames
+
+### Architecture
+
+The server supports:
+- **HTTP** for serving HTML files
+- **WebSocket** for real-time bidirectional communication
+- **Broadcast channels** for multi-client streaming
+- **JPEG frame encoding** for efficient transmission
 
 ### Testing
 
 Run the full test suite:
 ```bash
-cargo test
+cargo test --lib
 ```
 
-Run specific tests:
-```bash
-cargo test test_camera              # Camera basic functionality
-cargo test test_camera_params       # FPS and quality settings
-cargo test test_websocket           # WebSocket communication
-cargo test test_server              # Full server integration
+Test categories:
+- **Camera Tests**: Initialization, frame capture, FPS control, quality settings
+- **WebSocket Tests**: Binary transmission, bidirectional communication, high-frequency streaming
+- **Server Tests**: Client management, frame broadcasting, pipeline validation
+
+### Data Flow
+
+```
+Camera Client (Sender)
+    ↓ (JPEG frames via WebSocket)
+Server (Broadcast Channel)
+    ↓ (Frame distribution)
+Viewer Clients (Viewer)
+```
+
 ```
