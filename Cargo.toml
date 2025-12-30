@@ -1,0 +1,9 @@
+[dependencies]
+tokio = { version = "1", features = ["full"] }
+tokio-tungstenite = "0.23"
+tungstenite = "0.23"
+opencv = "0.92"
+anyhow = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+tracing = "0.1"
+clap = { version = "4.5", features = ["derive"] }  # CLIオプション用
