@@ -41,16 +41,7 @@ impl Camera {
     }
 
     pub fn capture_frame(&mut self) -> Result<Vec<u8>> {
-        // FPS制御
-        let now = Instant::now();
-        if let Some(next_time) = self.next_frame_time {
-            let sleep_dur = next_time.saturating_duration_since(now);
-            if sleep_dur > Duration::ZERO {
-                std::thread::sleep(sleep_dur);
-            }
-        }
-        self.next_frame_time = Some(Instant::now() + self.frame_interval);
-
+        // FPS制御はmain.rsのキャプチャループで行う（ブロッキングスリープを避ける）
         // JPEG フレームをシミュレート
         let mut frame = vec![0xFFu8, 0xD8u8, 0xFFu8]; // JPEG SOI marker
         

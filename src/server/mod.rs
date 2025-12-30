@@ -49,6 +49,10 @@ impl Server {
         let _ = self.broadcast_tx.send(frame.to_vec());
         Ok(())
     }
+
+    pub fn get_broadcast_sender(&self) -> broadcast::Sender<Vec<u8>> {
+        self.broadcast_tx.clone()
+    }
 }
 
 async fn handle_connection(
@@ -56,66 +60,75 @@ async fn handle_connection(
     broadcast_tx: broadcast::Sender<Vec<u8>>,
 ) -> Result<()> {
     // HTTP リクエストを読み込む
-    let mut buf = [0; 1024];
+    let mut buf = [0; 4096];
     let n = stream.read(&mut buf).await?;
+    if n == 0 {
+        return Ok(());
+    }
     let request = String::from_utf8_lossy(&buf[..n]);
     
-    // WebSocket ハンドシェイク
-    if request.starts_with("GET") {
-        // パスを抽出
-        let path = if let Some(path_end) = request.find(' ') {
-            let path_start = 4; // "GET " の後
-            let path = &request[path_start..path_end];
-            path.split('?').next().unwrap_or(path)
-        } else {
-            "/"
-        };
+    // Request-lineを安全に解析: "METHOD SP REQUEST-TARGET SP HTTP-VERSION CRLF"
+    if let Some(first_line_end) = request.find("\r\n") {
+        let first_line = &request[..first_line_end];
+        let mut parts = first_line.split_whitespace();
         
-        println!("Incoming request for path: {}", path);
-        
-        match path {
-            "/camera" | "/view" => {
-                // WebSocket アップグレード
-                let ws_stream = accept_async(stream).await?;
+        if let (Some(method), Some(path_raw), Some(_version)) = (parts.next(), parts.next(), parts.next()) {
+            if method.eq_ignore_ascii_case("GET") {
+                // Query stringを削除してパスを抽出
+                let path = path_raw.split('?').next().unwrap_or(path_raw);
+                println!("Incoming request for path: {}", path);
                 
                 match path {
-                    "/camera" => handle_camera_client(ws_stream, broadcast_tx).await,
-                    "/view" => handle_viewer_client(ws_stream, broadcast_tx).await,
-                    _ => Ok(()),
+                    "/camera" | "/view" => {
+                        // WebSocket アップグレード
+                        let ws_stream = accept_async(stream).await?;
+                        
+                        match path {
+                            "/camera" => return handle_camera_client(ws_stream, broadcast_tx).await,
+                            "/view" => return handle_viewer_client(ws_stream, broadcast_tx).await,
+                            _ => return Ok(()),
+                        }
+                    }
+                    "/" | "/sender.html" | "/static/sender.html" => {
+                        // sender.html を配信
+                        let content = include_str!("../../static/sender.html");
+                        let response = format!(
+                            "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\n\r\n{}",
+                            content.len(),
+                            content
+                        );
+                        stream.write_all(response.as_bytes()).await?;
+                        return Ok(());
+                    }
+                    "/viewer.html" | "/static/viewer.html" => {
+                        // viewer.html を配信
+                        let content = include_str!("../../static/viewer.html");
+                        let response = format!(
+                            "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\n\r\n{}",
+                            content.len(),
+                            content
+                        );
+                        stream.write_all(response.as_bytes()).await?;
+                        return Ok(());
+                    }
+                    p if p.starts_with("/static/") => {
+                        // /static/ で始まるがサポートされていないパス
+                        let response = "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n";
+                        stream.write_all(response.as_bytes()).await?;
+                        return Ok(());
+                    }
+                    _ => {
+                        // 404 Not Found
+                        let response = "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n";
+                        stream.write_all(response.as_bytes()).await?;
+                        return Ok(());
+                    }
                 }
             }
-            "/sender.html" | "/" => {
-                // sender.html を配信
-                let content = include_str!("../../static/sender.html");
-                let response = format!(
-                    "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {}\r\n\r\n{}",
-                    content.len(),
-                    content
-                );
-                stream.write_all(response.as_bytes()).await?;
-                Ok(())
-            }
-            "/viewer.html" => {
-                // viewer.html を配信
-                let content = include_str!("../../static/viewer.html");
-                let response = format!(
-                    "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {}\r\n\r\n{}",
-                    content.len(),
-                    content
-                );
-                stream.write_all(response.as_bytes()).await?;
-                Ok(())
-            }
-            _ => {
-                // 404 Not Found
-                let response = "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n";
-                stream.write_all(response.as_bytes()).await?;
-                Ok(())
-            }
         }
-    } else {
-        Ok(())
     }
+    
+    Ok(())
 }
 
 async fn handle_camera_client(
