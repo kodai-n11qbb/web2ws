@@ -19,11 +19,15 @@ struct Args {
 fn main() -> anyhow::Result<()> {
     let args = Args::parse();
     
-    // Camera::new().fps().quality() でチェーン呼び出し
-    let mut camera = Camera::new(0)?
+    // Initialize camera with FPS and quality settings
+    let camera = Camera::new(0)?
         .fps(args.fps)
-        .quality(args.quality);
+        .quality(args.quality)
+        .build()?;
     
-    // サーバ起動 + カメラ連携...
+    println!("Camera initialized - FPS: {}, Quality: {}", args.fps, args.quality);
+    println!("Server starting on {}", args.bind);
+    
+    // Server integration will be done in async context with tokio
     Ok(())
 }

@@ -60,8 +60,15 @@ impl Camera {
         Ok(buf)
     }
 
+    pub fn is_open(&self) -> bool {
+        self.cap.is_opened().unwrap_or(false)
+    }
+
     pub fn build(self) -> Result<Self> {
         // 最終確認・初期化
+        if !self.is_open() {
+            anyhow::bail!("Camera failed to open");
+        }
         if self.target_fps <= 0.0 {
             anyhow::bail!("FPS must be positive");
         }
