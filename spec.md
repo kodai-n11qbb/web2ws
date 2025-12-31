@@ -5,10 +5,10 @@
     - アクセスするのは数人想定
 
 - 機能
-    - 以下のサービスをユーザーが組み合わせて使う
+    - 以下のサービスをユーザーが組み合わせて使う(デフォルトでは全て同時起動)
     - signalingserver
-    - webcam sender
-    - viewer
+    - webcam sender(サイト)
+    - viewer(サイト)
 
 - 内部
     - fpsはなるべく高くする
