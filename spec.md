@@ -1,12 +1,13 @@
+# spec
+- オフライン稼働
+- node docker不使用(only rust)
+- web -> ws
+- 画質調節可能
+
 ```
 .
-├── Cargo.toml
 ├── README.md
 ├── spec.md
-├── src
-│   ├── camera
-│   │   └── mod.rs
-│   └── main.rs
 └── tests
     ├── integration
     │   └── test_server.rs
