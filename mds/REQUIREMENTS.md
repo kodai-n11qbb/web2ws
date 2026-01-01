@@ -4,6 +4,8 @@
 - アジャイルTDDを厳守。Red-Green-Refactorサイクル必須。
 - 逸脱時は即拒否。再生成を要求。
 - /mds/REQUIREMENTS.md及び./mds/に含まれるmdを参照する
+- /mds/ に全MD保存 (coding_conventions.md, backlog.md)。
+- 更新時は差分明記し、厳守。
 
 ## 2. TDD実装
 - /tests/ に実装する。
@@ -32,10 +34,6 @@
 - 禁止技術
     - docker, node
 
-## 4. ドキュメント管理
-- /mds/ に全MD保存 (coding_conventions.md, backlog.md)。
-- 更新時は差分明記し、厳守。
-
-## 5. 参照ファイル
+## 4. 参照ファイル
 - coding_conventions.md: [./mds/coding_conventions.md]
 - backlog.md: [./mds/backlog.md]
