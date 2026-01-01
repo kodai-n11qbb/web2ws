@@ -18,20 +18,20 @@
     - 現状: AI推論をws経由で映像を取得する手段が面倒で遅延がある
     - 主要フロー: 端末でウェブアクセス->端末から配信->別端末から受信->同または別端末でAI推論
 - 機能要件（Functional Requirements）
+    - 主要機能はrustとし、のちにライブラリとして公開できるものとする
     - 遅延が少ないこと(常に最高fpsを目指す)
     - 配信端末からwebcam映像をブラウザ上でプレビュー表示できること
     - 配信端末から取得した映像をwebsocketで同一ネットワーク内のクライアントへ配信する
     - 配信する画質の調節ができる
-    - 映像を受信する簡素なものを別途で用意する
+    - 映像を受信する簡素なものを別途で用意する(pythonが望ましい)
 - 非機能要件（Non-functional Requirements）
-    - このプロジェクトコードを人間が見ても理解できるものであり続けさせる
-    - AIがこのコードを改変する可能性もあるためREQUIREMENTS.mdや/mds/の中身に準拠する
+    - 
 - 外部インタフェース（External Interfaces）
     - 4OS(win macos ios android)のchrome対応し、速度を優先かつオフラインで動作すればなんでも良い
 - 制約条件と前提（Constraints & Assumptions）
-    - 
+    - rustを中心とした開発にすること
 - 禁止技術
-    - docker, node
+    - docker, npm
 
 ## 4. 参照ファイル
 - coding_conventions.md: [./mds/coding_conventions.md]
