@@ -4,7 +4,7 @@
 - アジャイルTDDを厳守。Red-Green-Refactorサイクル必須。
 - 逸脱時は即拒否。再生成を要求。
 - TDD(/tests/)で実装されたものを中心にプロジェクトを進めること
-- /mds/backlog.md より、todoを書き示し、透明性を保つこと
+- /mds/backlog.md より、todoを書き示し更新し続け、透明性を保つこと
 - /mds/config_conventions.md より、コード規約を定めて従うこと
 
 ## 2. TDD実装
