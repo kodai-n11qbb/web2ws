@@ -10,8 +10,20 @@
 - PRマージ前にテスト通過必須 (Branch Protection有効)。
 
 ## 3. 人間定義項目
-- 要件: [人間記述]
+- 目的と範囲（Goal & Scope）
+    - 
+- 業務要件（Business Requirements）
+    - 
+- 機能要件（Functional Requirements）
+    - 
+- 非機能要件（Non-functional Requirements）
+    - 
+- 外部インタフェース（External Interfaces）
+    - 
+- 制約条件と前提（Constraints & Assumptions）
+    - 
 - 禁止技術: [例: 同期処理禁止、特定ライブラリNG]
+    - 
 
 ## 4. ドキュメント管理
 - /mds/ に全MD保存 (coding_conventions.md, backlog.md)。
