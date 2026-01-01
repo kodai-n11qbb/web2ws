@@ -32,7 +32,7 @@
 - 制約条件と前提（Constraints & Assumptions）
     - rustを中心とした開発にすること
 - 禁止技術
-    - docker, npm
+    - docker, npm, 完成品実行時にオンラインでないと機能しないもの
 
 ## 4. 参照ファイル
 - coding_conventions.md: [./mds/coding_conventions.md]
