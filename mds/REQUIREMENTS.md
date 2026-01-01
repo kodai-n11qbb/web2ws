@@ -3,9 +3,8 @@
 ## 1. 開発原則
 - アジャイルTDDを厳守。Red-Green-Refactorサイクル必須。
 - 逸脱時は即拒否。再生成を要求。
-- /mds/REQUIREMENTS.md及び./mds/に含まれるmdを参照する
-- /mds/ に全MD保存 (coding_conventions.md, backlog.md)。
-- 更新時は差分明記し、厳守。
+- /mds/backlog.md より、todoを書き示し、透明性を保つこと
+- /mds/config_conventions.md より、コード規約を定めて従うこと
 
 ## 2. TDD実装
 - /tests/ に実装する。
