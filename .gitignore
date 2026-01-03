@@ -1,11 +1,19 @@
 # Rust
-/target
+/target/
 Cargo.lock
 **/*.rs.bk
 *.pdb
 
-# python
+# Python
 /venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
 
 # IDE
 .vscode/
@@ -26,6 +34,7 @@ release/
 
 # Test outputs
 test-results/
+coverage/
 
 # OS
 .DS_Store
@@ -36,9 +45,20 @@ Thumbs.db
 .env
 .env.local
 
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
-# Added by cargo
-#
-# already existing elements were commented out
+# Temporary files
+*.tmp
+*.temp
+.cache/
 
-#/target
+# Lock files (keep Cargo.lock for reproducible builds)
+# Cargo.lock
+
+# Backup files
+*.bak
+*.backup

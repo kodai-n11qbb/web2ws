@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web2WS - Webcam Stream Receiver</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background-color: #1a1a1a;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .container {
+            max-width: 1200px;
+            width: 100%;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .header h1 {
+            margin: 0;
+            color: #00ff88;
+        }
+        
+        .video-container {
+            position: relative;
+            background-color: #000;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 20px rgba(0, 255, 136, 0.3);
+        }
+        
+        #videoCanvas {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-connect {
+            background-color: #00ff88;
+            color: #000;
+        }
+        
+        .btn-connect:hover {
+            background-color: #00cc6a;
+        }
+        
+        .btn-disconnect {
+            background-color: #ff4444;
+            color: white;
+        }
+        
+        .btn-disconnect:hover {
+            background-color: #cc0000;
+        }
+        
+        .status {
+            text-align: center;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        
+        .status.connected {
+            background-color: rgba(0, 255, 136, 0.2);
+            border: 1px solid #00ff88;
+        }
+        
+        .status.disconnected {
+            background-color: rgba(255, 68, 68, 0.2);
+            border: 1px solid #ff4444;
+        }
+        
+        .status.connecting {
+            background-color: rgba(255, 165, 0, 0.2);
+            border: 1px solid #ffa500;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .stat-item {
+            background-color: rgba(255, 255, 255, 0.1);
+            padding: 15px;
+            border-radius: 5px;
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #00ff88;
+        }
+        
+        .stat-label {
+            font-size: 12px;
+            color: #ccc;
+            margin-top: 5px;
+        }
+        
+        .quality-controls {
+            background-color: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        
+        .quality-controls h3 {
+            margin-top: 0;
+            color: #00ff88;
+        }
+        
+        .slider-container {
+            margin: 10px 0;
+        }
+        
+        .slider {
+            width: 100%;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎥 Web2WS Stream Receiver</h1>
+            <p>Webcam to WebSocket Streaming Receiver</p>
+        </div>
+        
+        <div id="status" class="status disconnected">
+            Status: Disconnected
+        </div>
+        
+        <div class="video-container">
+            <canvas id="videoCanvas"></canvas>
+        </div>
+        
+        <div class="controls">
+            <button id="connectBtn" class="btn btn-connect">Connect</button>
+            <button id="disconnectBtn" class="btn btn-disconnect" disabled>Disconnect</button>
+        </div>
+        
+        <div class="quality-controls">
+            <h3>Quality Settings</h3>
+            <div class="slider-container">
+                <label for="qualitySlider">Quality: <span id="qualityValue">80</span>%</label>
+                <input type="range" id="qualitySlider" class="slider" min="10" max="100" value="80" step="10">
+            </div>
+            <div class="slider-container">
+                <label for="fpsSlider">Target FPS: <span id="fpsValue">30</span></label>
+                <input type="range" id="fpsSlider" class="slider" min="10" max="60" value="30" step="5">
+            </div>
+        </div>
+        
+        <div class="stats">
+            <div class="stat-item">
+                <div class="stat-value" id="fpsCounter">0</div>
+                <div class="stat-label">Current FPS</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="frameCounter">0</div>
+                <div class="stat-label">Total Frames</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="latencyCounter">0</div>
+                <div class="stat-label">Latency (ms)</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="dataRateCounter">0</div>
+                <div class="stat-label">Data Rate (KB/s)</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
